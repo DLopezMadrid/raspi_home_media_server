@@ -1,0 +1,318 @@
+version: "3"
+x-extra_hosts:
+  # This is added so that within each service you can communicate to another service by using the DNS name of pi rather
+  # than using IP address. Makes it easy if the IP address changes. For example, when configuring Radarr, you can
+  # configure the transmission client url as http://pi:9091
+  &pi
+  # Change this to IP of your RPi
+  - "pi:192.168.1.100"
+services:
+  #
+  # mix from https://github.com/thundermagic/rpi_media_centre and https://github.com/marchah/pi-htpc-download-box
+  #
+  # All the services use docker bind mounts to store config data and media on the host's filesystem. If you're familiar with
+  # docker storage, you can use whatever you want. You can change it to use docker volumes if you want.
+  # I have my external HDD mounted as /mnt/media. Hence all the bind mounts use /mnt/media as the root. If you want
+  # to use a different directory for bind mount, you can do that by modifying the bind mounts under volumes section of
+  # a service.
+  #
+  # Nearly all the containers can be run as non root. This is controlled by PUID and PGID environment variables.
+  # Make sure any volume directories on the host are owned by the same user you specify to run the container as. Else
+  # you may have permissions issues.
+  #
+  # If you dont want any service, you can delete that section. Alternatively, if you want to use another service or
+  # add more services, you can add/change them in this file.
+  # For example: if you want to use Emby instead of Plex, you can change the plex service to emby. Linuxserver.io
+  # provide most of the docker images that you would need. They provide a docker image for emby as well.
+  #
+  # Each services runs on a different port number. Plex and transmission-openvpn uses host networking mode whereas all
+  # the other services use docker bridge networking and have host ports mapped to container ports. For these you can
+  # change the mapping between host ports and container ports. Port mapping is in the format <host_port>:<container_port>
+  vpn:
+    container_name: vpn
+    image: bubuntux/nordvpn:3.7.4
+    network_mode: bridge
+    cap_add:
+      - net_admin # required to modify network interfaces
+      - SYS_MODULE #required for nordlynx
+    sysctls:
+      - net.ipv4.conf.all.rp_filter=2
+    restart: unless-stopped
+    devices:
+      - /dev/net/tun
+    environment:
+      - USER=${VPN_USER} # vpn user, defined in .env
+      - PASS=${VPN_PASSWORD} # vpn password, defined in .env
+      - CONNECT=${VPN_COUNTRY} # vpn country, defined in .env
+      - NETWORK=${NETWORK} # local network mask, defined in .env
+      - TECHNOLOGY=${VPN_TECHNOLOGY}
+      - CATEGORY=P2P
+      - OPENVPN_OPTS=--pull-filter ignore "ping-restart" --ping-exit 180
+      - TZ=${TZ} # timezone, defined in .env
+    ports:
+      - 9091:9091 # Transmission web UI
+      - 51413:51413 # Transmission bittorrent daemon
+      - 51413:51413/udp # Transmission bittorrent daemon
+      - 8112:8112 # port for deluge web UI to be reachable from local network
+      - 51360:51360/udp #deluge
+      - 58846:58846 #deluge
+      - 58946:58946 #deluge
+      - 5050:5050 #transmission
+    volumes:
+      - /mnt/media/appdata/nordvpn:/config
+
+        # transmission:
+        #   image: jaymoulin/transmission:latest
+        #   container_name: transmission
+        #   restart: unless-stopped
+        #   network_mode: service:vpn # run on the vpn network
+        #   environment:
+        #     - PUID=${PUID} # default user id, defined in .env
+        #     - PGID=${PGID} # default group id, defined in .env
+        #     - TZ=${TZ} # timezone, defined in .env
+        #   volumes:
+        #     - /mnt/media/downloads:/downloads # downloads folder
+        #    - /mnt/media/appdata/transmission:/config # config files
+
+  deluge:
+    container_name: deluge
+    image: linuxserver/deluge:latest
+    restart: unless-stopped
+    network_mode: service:vpn # run on the vpn network
+    environment:
+      - PUID=${PUID} # default user id, defined in .env
+      - PGID=${PGID} # default group id, defined in .env
+      - TZ=${TZ} # timezone, defined in .env
+    volumes:
+      - /mnt/media/downloads:/downloads # downloads folder
+      - /mnt/media/appdata/deluge:/config # config files
+
+  plex:
+    image: linuxserver/plex:latest
+    restart: unless-stopped
+    container_name: plex
+    network_mode: host
+    # NOTE: Please delete this entire `devices` section if your device does not have /dev/dri device. If you using something
+    # like RPi3, you would need to 
+    # delete this section else you will get an error when trying to run this container.
+    #devices:
+    # This basically mounts the GPU device on the host to the container, needed for hardware transcoding.
+    # For a RPi 4 this won't do anything as plex does not support transcoding on anything other than Intel quicksync.     # You can comment or delete this if you want. Leaving it as it is won't do any harm.
+    # - "/dev/dri:/dev/dri"
+    environment:
+      # The container is run as the user with this PUID and PGID (user and group id).
+      - PUID=1000
+      - PGID=1000
+    volumes:
+      # Docker bind mounts are used to store config and media on the host's filesystem. Config for plex will be stored
+      # in /mnt/media/appdata/plex/config directory and any transcoding data is stored in a transcode directory
+      - /mnt/media/appdata/plex/config:/config
+      - /mnt/media/appdata/plex/transcode:/transcode
+      # Within plex, we are mounting the root of /mnt/media to /all_media directory. So within plex, when you look
+      # inside /all_media directory you would see the same file structure as /mnt/media on the host
+      - /mnt/media:/all_media
+
+  jackett:
+    image: linuxserver/jackett:latest
+    restart: unless-stopped
+    container_name: jackett
+    ports:
+      # Host port 9117 is mapped to container port 9117
+      - "9117:9117"
+    environment:
+      # The container is run as the user with this PUID and PGID (user and group id).
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/London
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /mnt/media/appdata/jackett:/config
+      - /mnt/media/downloads/torrent-blackhole:/downloads
+
+  radarr:
+    image: linuxserver/radarr:latest
+    restart: unless-stopped
+    container_name: radarr
+    network_mode: host
+    ports:
+      # Host port 7878 is mapped to container port 7878
+      - "7878:7878"
+    environment:
+      # The container is run as the user with this PUID and PGID (user and group id).
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/London
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      # Radarr needs to know where the downloaded media is. This is told to radarr by transmission
+      - /mnt/media/downloads:/downloads
+      # - /mnt/media/downloads:/data
+      # config directory
+      - /mnt/media/appdata/radarr:/config
+      # Movies imported by radarr are stored in /mnt/media/movies directory on the host. Radarr sees this directory
+      # as /movies. Within radarr make your root folder as /movies
+      - /mnt/media/movies:/movies
+
+  sonarr:
+    image: linuxserver/sonarr:preview
+    restart: unless-stopped
+    container_name: sonarr
+    ports:
+      # Host port 8989 is mapped to container port 8989
+      - "8989:8989"
+    environment:
+      # The container is run as the user with this PUID and PGID (user and group id).
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/London
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      # sonarr needs to know where the downloaded media is. This is told to sonarr by transmission
+      - /mnt/media/downloads:/downloads
+      # - /mnt/media/downloads:/data
+      # config directory
+      - /mnt/media/appdata/sonarr:/config
+      # TV shows imported by sonarr are stored in /mnt/media/tv_shows directory on the host. sonarr sees this directory
+      # as /tv. Within sonarr make your root folder as /tv
+      - /mnt/media/tv_shows:/tv
+
+  lidarr:
+    image: linuxserver/lidarr:latest
+    restart: unless-stopped
+    container_name: lidarr
+    ports:
+      # Host port 8686 is mapped to container port 8686
+      - "8686:8686"
+    environment:
+      # The container is run as the user with this PUID and PGID (user and group id).
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/London
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      # lidarr needs to know where the downloaded media is. This is told to lidarr by transmission
+      - /mnt/media/downloads:/downloads
+      - /mnt/media/downloads:/data
+      # config directory
+      - /mnt/media/appdata/lidarr:/config
+      # Music imported by lidarr is stored in /mnt/media/music directory on the host. lidarr sees this directory
+      # as /music. Within lidarr make your root folder as /music
+      - /mnt/media/music:/music
+
+  tautulli:
+    image: linuxserver/tautulli:latest
+    restart: unless-stopped
+    container_name: tautulli
+    ports:
+      # Host port 8181 is mapped to container port 8181
+      - "8181:8181"
+    environment:
+      # The container is run as the user with this PUID and PGID (user and group id).
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/London
+    volumes:
+      # config directory
+      - /mnt/media/appdata/tautulli:/config
+      # Tautulli needs access to plex logs. In the plex container we mounted /mnt/media/appdata/plex of the host as the
+      # config directory for plex. Logs are located within this config directory
+      - /mnt/media/appdata/plex/config/Library/Application Support/Plex Media Server/Logs:/logs
+
+  organizr:
+    image: linuxserver/organizr:latest
+    restart: unless-stopped
+    container_name: organizr
+    ports:
+      # Host port 8181 is mapped to container port 8181
+      - "9983:80"
+    environment:
+      # The container is run as the user with this PUID and PGID (user and group id).
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/London
+    volumes:
+      # config directory
+      - /mnt/media/appdata/organizr:/config
+
+  swag:
+    image: linuxserver/swag:latest
+    container_name: swag
+    network_mode: host
+    cap_add:
+      - NET_ADMIN
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/London
+      - URL=lopezmadrid.com
+      - SUBDOMAINS=radarr, sonarr, plex, jackett, pihole, tautulli, media, hassio, deluge 
+      - VALIDATION=http
+      - DNSPLUGIN= #optional
+      - PROPAGATION= #optional
+      - DUCKDNSTOKEN= #optional
+      - EMAIL= YOUR_EMAIL  #YOUR EMAIL
+      - ONLY_SUBDOMAINS=false #optional
+      - EXTRA_DOMAINS= #optional
+      - STAGING=false #optional
+    volumes:
+      - /mnt/media/appdata/swag:/config
+    ports:
+      - 443:443
+      - 80:80 #optional
+    restart: unless-stopped
+
+
+  # Sonarr at present does not support netimport lists like Radarr does. On Radarr you can setup it up to import movies
+  # from Lists like IMDB lists or themoviedb.org lists. Using these lists, you can just add the movies you want to
+  # these lists and radarr will sync up with these lists and then start downloading and managing the movies.
+  # Similar thing is not available for sonarr. So this service can sync the TV shows from TVDB.com list and add them
+  # to sonarr. So basically you create an account on TVDB.com and then you would get a username and you can create an
+  # API KEY. You would need these to use this service. Once this service is setup, any TV shows that you add to your
+  # favourites list will be fetched at the SYNC_INTERVAL and added to sonarr. Sonarr then would start downloading and
+  # managing this TV show
+  #sonarr_netimport:
+  #  image: thundermagic/sonarr_netimport:latest
+  #  restart: always
+  #  container_name: sonarr_netimport
+  #  extra_hosts: *pi
+  #  environment:
+  #    - TVDB_USERNAME=first.lastb1q
+  #    - TVDB_USER_KEY=user_key
+  #    - TVDB_API_KEY=tvdb_api_key
+  #    # IP address and port number where sonarr can be accessed
+  #    - SONARR_IP=192.168.1.100
+  #    - SONARR_PORT=8989
+  #    # Sonarr app API key. This is on sonarr under settings>general
+  #    - SONARR_API_KEY=sonarr_api_key
+  #    - SYNC_INTERVAL=3600  # Interval at which to sync with TVDB, in seconds
+  #    - SEARCH_MISSING_EPISODES=1  # 1 is True
+  #    - QUALITY_PROFILE_ID=1  # 1 is profile any
+  #    - MONITORED=1  # 1 is True
+  #    - ROOT_FOLDER_PATH=/tv/  # Full path of root folder
+  #    # Below variables are for sending error notification emails. If not needed, delete these
+  #    # - EMAIL_ADDRESS=first.last@gmail.com
+  #    # - EMAIL_PASSWORD=email_password
+  #    # - EMAIL_TO_ADDRESS=first.last@gmail.com
+  #    # - SMTP_SERVER=smtp.gmail.com
+  #    # - SMTP_SERVER_PORT=587
+
+  ## Similar to sonarr_netimport but for radarr. Radarr has this feature built-in but radarr uses TMDB API v3 and
+  ## I have noticed that if using v3 API, TMDB only returns maximum of 500 movies in the list.
+  ## This is resolved if using TMDB API v4.
+  #radarr_netimport:
+  #  image: thundermagic/radarr_netimport:latest
+  #  restart: on-failure
+  #  container_name: radarr_netimport
+  #  environment:
+  #    - TMDB_ACCESS_TOKEN=sampletoken
+  #    - TMDB_API_KEY=tvdb_api_key
+  #    - TMDB_LIST_ID=12345
+  #    # IP address and port number where radarr can be accessed
+  #    - RADARR_IP=192.168.1.100
+  #    - RADARR_PORT=7878
+  #    # radarr API key. This is on radarr under settings>general
+  #    - RADARR_API_KEY=radarr_api_key
+  #    - SYNC_INTERVAL=3600  # Interval at which to sync with TMDB, in seconds
+  #    - QUALITY_PROFILE_ID=1  # 1 is profile any
+  #    - ROOT_FOLDER_PATH=/movies/  # Full path of root folder
+
