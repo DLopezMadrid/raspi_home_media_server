@@ -13,10 +13,11 @@
 - [Pihole](https://pi-hole.net/)  
 
 ## Docker images (with links)
-- [Sonarr](https://hub.docker.com/r/linuxserver/sonarr)
+- [Sonarr](https://hub.docker.com/r/linuxserver/sonarr) (use the preview tag to get the new beta version)
 - [Radarr](https://hub.docker.com/r/linuxserver/radarr)
 - [Jackett](https://hub.docker.com/r/linuxserver/jackett)
 - [Deluge](https://hub.docker.com/r/linuxserver/deluge)
+- [Transmission](https://hub.docker.com/r/linuxserver/transmission)
 - [Plex](https://hub.docker.com/r/linuxserver/plex)
 - [Organizr](https://hub.docker.com/r/linuxserver/organizr)  
 - [Tautulli](https://hub.docker.com/r/linuxserver/tautulli)  

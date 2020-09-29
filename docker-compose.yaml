@@ -87,6 +87,24 @@ services:
       - /mnt/media/downloads:/downloads # downloads folder
       - /mnt/media/appdata/deluge:/config # config files
 
+  transmission:
+    container_name: transmission
+    image: linuxserver/transmission:latest
+    restart: unless-stopped
+    network_mode: service:vpn # run on the vpn network
+    environment:
+      - PUID=${PUID} # default user id, defined in .env
+      - PGID=${PGID} # default group id, defined in .env
+      - TZ=${TZ} # timezone, defined in .env
+      - TRANSMISSION_WEB_HOME=/combustion-release/ #optional
+      - USER=YOUR_USER #optional
+      - PASS=YOUR_PASSWORD #optional
+    volumes:
+      - /mnt/media/downloads:/downloads # downloads folder
+      - /mnt/media/appdata/transmission:/config # config files
+      - /mnt/media/downloads/torrent-blackhole:/watch #blackhole to auto add
+
+
   plex:
     image: linuxserver/plex:latest
     restart: unless-stopped
@@ -245,7 +263,7 @@ services:
       - PGID=1000
       - TZ=Europe/London
       - URL=lopezmadrid.com
-      - SUBDOMAINS=radarr, sonarr, plex, jackett, pihole, tautulli, media, hassio, deluge 
+      - SUBDOMAINS=radarr, sonarr, plex, jackett, pihole, tautulli, media, hassio, deluge, transmission 
       - VALIDATION=http
       - DNSPLUGIN= #optional
       - PROPAGATION= #optional
