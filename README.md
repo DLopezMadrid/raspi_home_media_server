@@ -64,7 +64,9 @@ Within appdata we create individual folders to store the config files of each ap
     ├── nginx
     └── etc...
 ```
-Most of the containers that I use are from [linuxserver.io](https://www.linuxserver.io/). The `docker-compose.yaml` file contains all the configs for them. The only one not from linuxserver.io is the NordVPN client one (from [bubuntux](https://hub.docker.com/r/bubuntux/nordvpn)), the reason for this is because this NordVPN client supports their new NordLynx (wireguard) protocol, which is supposed to be faster.
+Most of the containers that I use are from [linuxserver.io](https://www.linuxserver.io/). The `docker-compose.yaml` file contains all the configs for them. The only one not from linuxserver.io is the NordVPN client one (from [bubuntux](https://hub.docker.com/r/bubuntux/nordvpn)), the reason for this is because this NordVPN client supports their new NordLynx (wireguard) protocol, which is supposed to be faster.  
+  
+The way that the containers are set up, all of them with the exception of deluge and transmission use the original host network. Deluge and transmission can only access the internet through the VPN container if it is properly connected, this avoids any traffic leak if the VPN connection goes down.
 
 
 ## Installation
