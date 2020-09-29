@@ -33,7 +33,7 @@
 [https://github.com/thundermagic/rpi\_media\_centre](https://github.com/thundermagic/rpi_media_centre)  
 [https://github.com/marchah/pi-htpc-download-box](https://github.com/marchah/pi-htpc-download-box)  
 [https://github.com/sebgl/htpc-download-box](https://github.com/sebgl/htpc-download-box)  
-[https://github.com/nagyben/oracle](https://github.com/nagyben/oracle)
+[https://github.com/nagyben/oracle](https://github.com/nagyben/oracle)  
 [https://daan.dev/how-to/reverse-proxy-omv-letsencrypt-sabnzbd-radarr-sonarr-transmission/3/](https://daan.dev/how-to/reverse-proxy-omv-letsencrypt-sabnzbd-radarr-sonarr-transmission/3/)
 
 
@@ -129,6 +129,12 @@ Restart a container
 $ docker-compose restart -t 1 <container_name>
 ```
 
+To upgrade all services
+```bash
+$ docker-compose pull
+$ docker-compose down
+$ docker-compose up -d
+```
 ## Configuration
 
 Follow [these steps](https://github.com/sebgl/htpc-download-box) to configure each container
