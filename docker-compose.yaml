@@ -44,7 +44,7 @@ services:
       - USER=${VPN_USER} # vpn user, defined in .env
       - PASS=${VPN_PASSWORD} # vpn password, defined in .env
       - CONNECT=${VPN_COUNTRY} # vpn country, defined in .env
-      - NETWORK=${NETWORK} # local network mask, defined in .env
+      - NETWORK=10.9.0.1/24, 192.168.1.0/24 # wireguard and LAN
       - TECHNOLOGY=${VPN_TECHNOLOGY}
       - CATEGORY=P2P
       - OPENVPN_OPTS=--pull-filter ignore "ping-restart" --ping-exit 180
@@ -58,52 +58,59 @@ services:
       - 58846:58846 #deluge
       - 58946:58946 #deluge
       - 5050:5050 #transmission
+      - 6881:6881 # qbit
+      - 6881:6881/udp #qbit
+      - 8080:8080 #qbit web iface
     volumes:
       - /mnt/media/appdata/nordvpn:/config
 
-        # transmission:
-        #   image: jaymoulin/transmission:latest
-        #   container_name: transmission
-        #   restart: unless-stopped
-        #   network_mode: service:vpn # run on the vpn network
-        #   environment:
-        #     - PUID=${PUID} # default user id, defined in .env
-        #     - PGID=${PGID} # default group id, defined in .env
-        #     - TZ=${TZ} # timezone, defined in .env
-        #   volumes:
-        #     - /mnt/media/downloads:/downloads # downloads folder
-        #    - /mnt/media/appdata/transmission:/config # config files
 
-  deluge:
-    container_name: deluge
-    image: linuxserver/deluge:latest
-    restart: unless-stopped
+  qbittorrent:
+    image: linuxserver/qbittorrent:latest
+    container_name: qbittorrent
     network_mode: service:vpn # run on the vpn network
     environment:
-      - PUID=${PUID} # default user id, defined in .env
-      - PGID=${PGID} # default group id, defined in .env
-      - TZ=${TZ} # timezone, defined in .env
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/London
+      - UMASK_SET=022
+      - WEBUI_PORT=8080
     volumes:
       - /mnt/media/downloads:/downloads # downloads folder
-      - /mnt/media/appdata/deluge:/config # config files
-
-  transmission:
-    container_name: transmission
-    image: linuxserver/transmission:latest
+      - /mnt/media/appdata/qbittorrent:/config # config files
     restart: unless-stopped
-    network_mode: service:vpn # run on the vpn network
-    environment:
-      - PUID=${PUID} # default user id, defined in .env
-      - PGID=${PGID} # default group id, defined in .env
-      - TZ=${TZ} # timezone, defined in .env
-      - TRANSMISSION_WEB_HOME=/combustion-release/ #optional
-      - USER=YOUR_USER #optional
-      - PASS=YOUR_PASSWORD #optional
-    volumes:
-      - /mnt/media/downloads:/downloads # downloads folder
-      - /mnt/media/appdata/transmission:/config # config files
-      - /mnt/media/downloads/torrent-blackhole:/watch #blackhole to auto add
 
+
+    # deluge:
+    #   container_name: deluge
+    #   image: linuxserver/deluge:latest
+    #   restart: unless-stopped
+    #   network_mode: service:vpn # run on the vpn network
+    #   environment:
+    #     - PUID=${PUID} # default user id, defined in .env
+    #     - PGID=${PGID} # default group id, defined in .env
+    #     - TZ=${TZ} # timezone, defined in .env
+    #   volumes:
+    #     - /mnt/media/downloads:/downloads # downloads folder
+    #     - /mnt/media/appdata/deluge:/config # config files
+
+
+    # transmission:
+    #   container_name: transmission
+    #   image: linuxserver/transmission:latest
+    #   restart: unless-stopped
+    #   network_mode: service:vpn # run on the vpn network
+    #   environment:
+    #     - PUID=${PUID} # default user id, defined in .env
+    #     - PGID=${PGID} # default group id, defined in .env
+    #     - TZ=${TZ} # timezone, defined in .env
+    #     - TRANSMISSION_WEB_HOME=/combustion-release/ #optional
+    #     - USER=pi #optional
+    #     - PASS=Polaris170 #optional
+    #   volumes:
+    #     - /mnt/media/downloads:/downloads # downloads folder
+    #     - /mnt/media/appdata/transmission:/config # config files
+    #     - /mnt/media/downloads/torrent-blackhole:/watch #blackhole to auto add
 
   plex:
     image: linuxserver/plex:latest
@@ -194,28 +201,28 @@ services:
       # as /tv. Within sonarr make your root folder as /tv
       - /mnt/media/tv_shows:/tv
 
-  lidarr:
-    image: linuxserver/lidarr:latest
-    restart: unless-stopped
-    container_name: lidarr
-    ports:
-      # Host port 8686 is mapped to container port 8686
-      - "8686:8686"
-    environment:
-      # The container is run as the user with this PUID and PGID (user and group id).
-      - PUID=1000
-      - PGID=1000
-      - TZ=Europe/London
-    volumes:
-      - /etc/localtime:/etc/localtime:ro
-      # lidarr needs to know where the downloaded media is. This is told to lidarr by transmission
-      - /mnt/media/downloads:/downloads
-      - /mnt/media/downloads:/data
-      # config directory
-      - /mnt/media/appdata/lidarr:/config
-      # Music imported by lidarr is stored in /mnt/media/music directory on the host. lidarr sees this directory
-      # as /music. Within lidarr make your root folder as /music
-      - /mnt/media/music:/music
+        # lidarr:
+        #   image: linuxserver/lidarr:latest
+        #   restart: unless-stopped
+        #   container_name: lidarr
+        #   ports:
+        #     # Host port 8686 is mapped to container port 8686
+        #     - "8686:8686"
+        #   environment:
+        #     # The container is run as the user with this PUID and PGID (user and group id).
+        #     - PUID=1000
+        #     - PGID=1000
+        #     - TZ=Europe/London
+        #   volumes:
+        #     - /etc/localtime:/etc/localtime:ro
+        #     # lidarr needs to know where the downloaded media is. This is told to lidarr by transmission
+        #     - /mnt/media/downloads:/downloads
+        #     - /mnt/media/downloads:/data
+        #     # config directory
+        #     - /mnt/media/appdata/lidarr:/config
+        #     # Music imported by lidarr is stored in /mnt/media/music directory on the host. lidarr sees this directory
+        #     # as /music. Within lidarr make your root folder as /music
+        #     - /mnt/media/music:/music
 
   tautulli:
     image: linuxserver/tautulli:latest
@@ -263,12 +270,13 @@ services:
       - PGID=1000
       - TZ=Europe/London
       - URL=lopezmadrid.com
-      - SUBDOMAINS=radarr, sonarr, plex, jackett, pihole, tautulli, media, hassio, deluge, transmission 
+      # - SUBDOMAINS=radarr, sonarr, plex, jackett, pihole, tautulli, media, hassio, deluge, transmission, wireguard 
+      - SUBDOMAINS=hassio, wireguard 
       - VALIDATION=http
       - DNSPLUGIN= #optional
       - PROPAGATION= #optional
       - DUCKDNSTOKEN= #optional
-      - EMAIL= YOUR_EMAIL  #YOUR EMAIL
+      - EMAIL= firedanifox@gmail.com #optional
       - ONLY_SUBDOMAINS=false #optional
       - EXTRA_DOMAINS= #optional
       - STAGING=false #optional
@@ -277,60 +285,3 @@ services:
     ports:
       - 443:443
       - 80:80 #optional
-    restart: unless-stopped
-
-
-  # Sonarr at present does not support netimport lists like Radarr does. On Radarr you can setup it up to import movies
-  # from Lists like IMDB lists or themoviedb.org lists. Using these lists, you can just add the movies you want to
-  # these lists and radarr will sync up with these lists and then start downloading and managing the movies.
-  # Similar thing is not available for sonarr. So this service can sync the TV shows from TVDB.com list and add them
-  # to sonarr. So basically you create an account on TVDB.com and then you would get a username and you can create an
-  # API KEY. You would need these to use this service. Once this service is setup, any TV shows that you add to your
-  # favourites list will be fetched at the SYNC_INTERVAL and added to sonarr. Sonarr then would start downloading and
-  # managing this TV show
-  #sonarr_netimport:
-  #  image: thundermagic/sonarr_netimport:latest
-  #  restart: always
-  #  container_name: sonarr_netimport
-  #  extra_hosts: *pi
-  #  environment:
-  #    - TVDB_USERNAME=first.lastb1q
-  #    - TVDB_USER_KEY=user_key
-  #    - TVDB_API_KEY=tvdb_api_key
-  #    # IP address and port number where sonarr can be accessed
-  #    - SONARR_IP=192.168.1.100
-  #    - SONARR_PORT=8989
-  #    # Sonarr app API key. This is on sonarr under settings>general
-  #    - SONARR_API_KEY=sonarr_api_key
-  #    - SYNC_INTERVAL=3600  # Interval at which to sync with TVDB, in seconds
-  #    - SEARCH_MISSING_EPISODES=1  # 1 is True
-  #    - QUALITY_PROFILE_ID=1  # 1 is profile any
-  #    - MONITORED=1  # 1 is True
-  #    - ROOT_FOLDER_PATH=/tv/  # Full path of root folder
-  #    # Below variables are for sending error notification emails. If not needed, delete these
-  #    # - EMAIL_ADDRESS=first.last@gmail.com
-  #    # - EMAIL_PASSWORD=email_password
-  #    # - EMAIL_TO_ADDRESS=first.last@gmail.com
-  #    # - SMTP_SERVER=smtp.gmail.com
-  #    # - SMTP_SERVER_PORT=587
-
-  ## Similar to sonarr_netimport but for radarr. Radarr has this feature built-in but radarr uses TMDB API v3 and
-  ## I have noticed that if using v3 API, TMDB only returns maximum of 500 movies in the list.
-  ## This is resolved if using TMDB API v4.
-  #radarr_netimport:
-  #  image: thundermagic/radarr_netimport:latest
-  #  restart: on-failure
-  #  container_name: radarr_netimport
-  #  environment:
-  #    - TMDB_ACCESS_TOKEN=sampletoken
-  #    - TMDB_API_KEY=tvdb_api_key
-  #    - TMDB_LIST_ID=12345
-  #    # IP address and port number where radarr can be accessed
-  #    - RADARR_IP=192.168.1.100
-  #    - RADARR_PORT=7878
-  #    # radarr API key. This is on radarr under settings>general
-  #    - RADARR_API_KEY=radarr_api_key
-  #    - SYNC_INTERVAL=3600  # Interval at which to sync with TMDB, in seconds
-  #    - QUALITY_PROFILE_ID=1  # 1 is profile any
-  #    - ROOT_FOLDER_PATH=/movies/  # Full path of root folder
-

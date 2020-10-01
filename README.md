@@ -10,7 +10,8 @@
 - [Docker](https://www.docker.com/)
 - [Docker-compose](https://docs.docker.com/compose/install/)
 - [Ddclient](https://github.com/ddclient/ddclient)
-- [Pihole](https://pi-hole.net/)  
+- [Pihole](https://pi-hole.net/) 
+- [Wireguard](https://www.wireguard.com/) 
 
 ## Docker images (with links)
 - [Sonarr](https://hub.docker.com/r/linuxserver/sonarr) (use the preview tag to get the new beta version)
@@ -35,9 +36,11 @@
 [https://github.com/sebgl/htpc-download-box](https://github.com/sebgl/htpc-download-box)  
 [https://github.com/nagyben/oracle](https://github.com/nagyben/oracle)  
 [https://daan.dev/how-to/reverse-proxy-omv-letsencrypt-sabnzbd-radarr-sonarr-transmission/3/](https://daan.dev/how-to/reverse-proxy-omv-letsencrypt-sabnzbd-radarr-sonarr-transmission/3/)
+[https://dietpi.com/phpbb/viewtopic.php?p=16308&sid=56b907dc56667d2a2d38125df2e8ef79#p16308](https://dietpi.com/phpbb/viewtopic.php?p=16308&sid=56b907dc56667d2a2d38125df2e8ef79#p16308)
 
 
-## Installation
+
+## Introduction
 Most of this software is dockerized and launched using docker-compose. The only things that run in the pi natively are dietpi (obviously), pihole (from dietpi-software and out-of-scope for this doc) and ddclient.
 
 The external HDD is mounted into /mnt/media and has the following directory structure
@@ -65,8 +68,10 @@ Within appdata we create individual folders to store the config files of each ap
     └── etc...
 ```
 Most of the containers that I use are from [linuxserver.io](https://www.linuxserver.io/). The `docker-compose.yaml` file contains all the configs for them. The only one not from linuxserver.io is the NordVPN client one (from [bubuntux](https://hub.docker.com/r/bubuntux/nordvpn)), the reason for this is because this NordVPN client supports their new NordLynx (wireguard) protocol, which is supposed to be faster.  
-  
+
 The way that the containers are set up, all of them with the exception of deluge and transmission use the original host network. Deluge and transmission can only access the internet through the VPN container if it is properly connected, this avoids any traffic leak if the VPN connection goes down.
+
+To access from outside the LAN network we will set up a reverse proxy with dynamic dns and a custom domain and wireguard. The reverse proxy will be used for homeassistant (required for google assistant integration) and wireguard for everything else.  
 
 
 ## Installation
@@ -142,7 +147,7 @@ $ docker-compose up -d
 Follow [these steps](https://github.com/sebgl/htpc-download-box) to configure each container
 
 
-## Reverse proxy
+## Reverse proxy (less secure)
 This is just for extra points, you should comment out the swag container out of `docker-compose.yaml` if you are not using a custom domain to host your apps
 
 
@@ -175,7 +180,7 @@ Add this to run ddclient every 7 mins and after every reboot
 */7 * * * * sudo ddclient
 @reboot sudo ddclient
 ```
-#### Nginx reverse proxy
+#### Nginx reverse proxy 
 - Configure the apps to use SSL using [this guide](https://daan.dev/how-to/reverse-proxy-omv-letsencrypt-sabnzbd-radarr-sonarr-transmission/3/)
 - For Plex, you will need to disable remote access, add the custom URL to Settings/Network/Custom server access URL through the web and set Secure connections to Preferred.
 - Reboot all the containers for the settings to be applied
@@ -186,5 +191,28 @@ Add this to run ddclient every 7 mins and after every reboot
 - Don't forget to set up passwords for whatever apps are exposed to the outside
 - You can also use nginx to assign custom domains to other raspis in your home network (e.g. Hassio)
 
-## Android app
-Use [NZB360](https://play.google.com/store/apps/details?id=com.kevinforeman.nzb360&hl=en_GB)
+## Wireguard (more secure)
+Reverse proxies can be a bit insecure, specially if you are exposing random apps completely to the rest of the world with no fail2ban (radarr, sonarr, etc...). Fortunately we can set up a wireguard client in dietpi very easily and use this instead to access the less secure apps. Homeassistant has built-in fail2ban and therefore can be left exposed to the outside world (plus it is a requirement for google assistant integration).  
+
+This way, I will only expose wireguard.customdomain.com and hassio.customdomain.com through nginx.  
+  
+Using `dietpi-software` install `wireguard`. Follow [these instructions](https://dietpi.com/phpbb/viewtopic.php?p=16308&sid=56b907dc56667d2a2d38125df2e8ef79#p16308) and in the setup wizard and you will probably don't need to change anything.  
+
+Install the [Wireguard app](https://play.google.com/store/apps/details?id=com.wireguard.android&hl=en) in your phone and use it to scan the QR code that you get by running the following command:  
+```bash
+$ sudo grep -v '^#' /etc/wireguard/wg0-client.conf | qrencode -t ansiutf8
+```
+To autostart the VPN interface on boot, run
+```bash
+$ sudo systemctl enable wg-quick@wg0-client
+```
+
+In order to route the tunnel traffic into the vpn container (torrent gui), you will need to add your wireguard network to its docker-compose environment as follows
+```
+NETWORK=10.9.0.1/24, 192.168.1.0/24 # wireguard and LAN
+```
+  
+Once this is done, you can activate the tunnel on your phone and your raspi will be accessible on `10.9.0.1` with each app in its respective port.
+
+## Android apps
+Use [NZB360](https://play.google.com/store/apps/details?id=com.kevinforeman.nzb360&hl=en_GB) for radarr, sonarr and [Wireguard](https://play.google.com/store/apps/details?id=com.wireguard.android&hl=en) to connect to your pi from outside the LAN network
