@@ -191,6 +191,21 @@ Add this to run ddclient every 7 mins and after every reboot
 - Don't forget to set up passwords for whatever apps are exposed to the outside
 - You can also use nginx to assign custom domains to other raspis in your home network (e.g. Hassio)
 
+#### Home assistant config
+In your `configuration.yaml` file you will need to edit or add the `http` section as follows:
+
+```
+http:
+  use_x_forwarded_for: true
+  # You must set the trusted proxy IP address so that Home Assistant will properly accept connections
+  # Set this to your NGINX machine IP, or localhost if hosted on the same machine.
+  trusted_proxies: 192.168.1.100
+  ip_ban_enabled: true
+  login_attempts_threshold: 3
+```
+This will enable fail2ban and nginx reverse proxy. Make sure that you have disabled the ssh addons (for security reasons).  
+You will also need to update your google assistant apps to point to the new domain.  
+
 ## Wireguard (more secure)
 Reverse proxies can be a bit insecure, specially if you are exposing random apps completely to the rest of the world with no fail2ban (radarr, sonarr, etc...). Fortunately we can set up a wireguard client in dietpi very easily and use this instead to access the less secure apps. Homeassistant has built-in fail2ban and therefore can be left exposed to the outside world (plus it is a requirement for google assistant integration).  
 
@@ -213,6 +228,8 @@ NETWORK=10.9.0.1/24, 192.168.1.0/24 # wireguard and LAN
 ```
   
 Once this is done, you can activate the tunnel on your phone and your raspi will be accessible on `10.9.0.1` with each app in its respective port.
+
+
 
 ## Android apps
 Use [NZB360](https://play.google.com/store/apps/details?id=com.kevinforeman.nzb360&hl=en_GB) for radarr, sonarr and [Wireguard](https://play.google.com/store/apps/details?id=com.wireguard.android&hl=en) to connect to your pi from outside the LAN network
